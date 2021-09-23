@@ -7,7 +7,9 @@ import GameState from './GameState';
 import { generateTeam } from './generators';
 
 import {
-  playerTypes, computerTypes, playerTypesName, computerTypesName,
+  playerTypes, computerTypes,
+  playerTypesName, computerTypesName,
+  playerPositions, computerPositions,
 } from './utils';
 
 export default class GameController {
@@ -29,6 +31,10 @@ export default class GameController {
     this.gameState.selectedCharacter = null;
     this.gameState.selectedCell = null;
     this.gameState.score = 0;
+
+    this.gamePlay.cellClickListeners = [];
+    this.gamePlay.cellEnterListeners = [];
+    this.gamePlay.cellLeaveListeners = [];
   }
 
   newGame() {
@@ -42,8 +48,12 @@ export default class GameController {
       this.gameState.characters.push(teamComputer.members[i]);
     }
 
-    this.init();
+    this.gamePlay.drawUi(themes[this.gameState.level]);
     this.gamePlay.redrawPositions(this.gameState.characters);
+
+    this.gamePlay.addCellEnterListener(this.onCellEnter.bind(this));
+    this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
+    this.gamePlay.addCellClickListener(this.onCellClick.bind(this));
   }
 
   saveGame() {
@@ -55,6 +65,7 @@ export default class GameController {
     GameState.from(this.gameState, state);
     this.gamePlay.drawUi(themes[this.gameState.level]);
     this.gamePlay.redrawPositions(this.gameState.characters);
+    if (!this.gameState.turnPlayer) setTimeout(() => this.turnComputer(), 2000);
   }
 
   gameOver(message) {
@@ -70,10 +81,6 @@ export default class GameController {
     this.gamePlay.addLoadGameListener(this.loadGame.bind(this));
 
     this.gamePlay.drawUi(themes[this.gameState.level]);
-
-    this.gamePlay.addCellEnterListener(this.onCellEnter.bind(this));
-    this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
-    this.gamePlay.addCellClickListener(this.onCellClick.bind(this));
   }
 
   onCellClick(index) {
@@ -193,29 +200,51 @@ export default class GameController {
       }
     }
 
-    if (x - step > 0) {
-      possibleVersion.push(findCoordinate(x - step, y, this.gamePlay.boardSize));
-    }
-    if (x + step <= this.gamePlay.boardSize) {
-      possibleVersion.push(findCoordinate(x + step, y, this.gamePlay.boardSize));
-    }
-    if (y - step > 0) {
-      possibleVersion.push(findCoordinate(x, y - step, this.gamePlay.boardSize));
-    }
-    if (y + step <= this.gamePlay.boardSize) {
-      possibleVersion.push(findCoordinate(x, y + step, this.gamePlay.boardSize));
-    }
-    if (x - step > 0 && y - step > 0) {
-      possibleVersion.push(findCoordinate(x - step, y - step, this.gamePlay.boardSize));
-    }
-    if (x + step <= this.gamePlay.boardSize && y - step > 0) {
-      possibleVersion.push(findCoordinate(x + step, y - step, this.gamePlay.boardSize));
-    }
-    if (x + step <= this.gamePlay.boardSize && y + step <= this.gamePlay.boardSize) {
-      possibleVersion.push(findCoordinate(x + step, y + step, this.gamePlay.boardSize));
-    }
-    if (x - step > 0 && y + step <= this.gamePlay.boardSize) {
-      possibleVersion.push(findCoordinate(x - step, y + step, this.gamePlay.boardSize));
+    if (this.gameState.characters.findIndex((item) => item.position === index) === -1) {
+      for (let i = 1; i <= step; i += 1) {
+        if (x - i > 0) {
+          possibleVersion.push(findCoordinate(x - i, y, this.gamePlay.boardSize));
+        }
+        if (x + i <= this.gamePlay.boardSize) {
+          possibleVersion.push(findCoordinate(x + i, y, this.gamePlay.boardSize));
+        }
+        if (y - i > 0) {
+          possibleVersion.push(findCoordinate(x, y - i, this.gamePlay.boardSize));
+        }
+        if (y + i <= this.gamePlay.boardSize) {
+          possibleVersion.push(findCoordinate(x, y + i, this.gamePlay.boardSize));
+        }
+        if (x - i > 0 && y - i > 0) {
+          possibleVersion.push(findCoordinate(x - i, y - i, this.gamePlay.boardSize));
+        }
+        if (x + i <= this.gamePlay.boardSize && y - i > 0) {
+          possibleVersion.push(findCoordinate(x + i, y - i, this.gamePlay.boardSize));
+        }
+        if (x + i <= this.gamePlay.boardSize && y + i <= this.gamePlay.boardSize) {
+          possibleVersion.push(findCoordinate(x + i, y + i, this.gamePlay.boardSize));
+        }
+        if (x - i > 0 && y + i <= this.gamePlay.boardSize) {
+          possibleVersion.push(findCoordinate(x - i, y + i, this.gamePlay.boardSize));
+        }
+      }
+    } else {
+      let top = 0;
+      let right = 0;
+      let left = 0;
+      let bottom = 0;
+
+      for (let i = 1; i <= step; i += 1) {
+        if (x - i > 0) left = i;
+        if (x + i <= this.gamePlay.boardSize) right = i;
+        if (y - i > 0) top = i;
+        if (y + i <= this.gamePlay.boardSize) bottom = i;
+      }
+
+      for (let j = y - top; j <= y + bottom; j += 1) {
+        for (let i = x - left; i <= x + right; i += 1) {
+          possibleVersion.push(findCoordinate(i, j, this.gamePlay.boardSize));
+        }
+      }
     }
 
     if (possibleVersion.includes(index)) {
@@ -227,11 +256,11 @@ export default class GameController {
 
   async attack(index) {
     const indexEnemy = this.gameState.characters.findIndex((item) => item.position === index);
-    const damage = Math.max(
+    const damage = Math.round(Math.max(
       // eslint-disable-next-line max-len
       this.gameState.selectedCharacter.attack - this.gameState.characters[indexEnemy].character.defence,
       this.gameState.selectedCharacter.attack * 0.1,
-    );
+    ));
     this.gameState.characters[indexEnemy].character.health -= damage;
     await this.gamePlay.showDamage(index, damage);
 
@@ -242,7 +271,12 @@ export default class GameController {
     if (this.gameState.turnPlayer) {
       // eslint-disable-next-line max-len
       const teamComputer = this.gameState.characters.filter((item) => computerTypesName().includes(item.character.type));
-      if (teamComputer.length === 0) this.levelUp();
+      if (teamComputer.length === 0) {
+        this.levelUp();
+        this.performAction();
+        this.gameState.turnPlayer = true;
+        return null;
+      }
     }
 
     if (!this.gameState.turnPlayer) {
@@ -251,10 +285,14 @@ export default class GameController {
       if (teamPlayer.length === 0) {
         this.checkRecord();
         this.gameOver(`К сожалению, Вы проиграли! Набранное количество баллов - ${this.gameState.score}. Лучший результат - ${this.gameState.record}`);
+        this.performAction();
+        this.gameState.turnPlayer = true;
+        return null;
       }
     }
 
     this.performAction();
+    return null;
   }
 
   motion(index) {
@@ -283,73 +321,79 @@ export default class GameController {
   }
 
   turnComputer() {
-    // eslint-disable-next-line max-len
-    const teamComputer = this.gameState.characters.filter((item) => computerTypesName().includes(item.character.type));
-    // eslint-disable-next-line max-len
-    const teamPlayer = this.gameState.characters.filter((item) => playerTypesName().includes(item.character.type));
+    if (!this.gameState.turnPlayer) {
+      // eslint-disable-next-line max-len
+      const teamComputer = this.gameState.characters.filter((item) => computerTypesName().includes(item.character.type));
+      // eslint-disable-next-line max-len
+      const teamPlayer = this.gameState.characters.filter((item) => playerTypesName().includes(item.character.type));
 
-    for (let i = 0; i < teamComputer.length; i += 1) {
-      this.gameState.selectedPosition = teamComputer[i].position;
-      this.gameState.selectedCharacter = teamComputer[i].character;
-      for (let j = 0; j < teamPlayer.length; j += 1) {
-        if (this.availableCells(teamPlayer[j].position).possible) {
-          this.gamePlay.selectCell(teamComputer[i].position);
-          this.gamePlay.selectCell(teamPlayer[j].position, 'red');
-          this.gameState.selectedCell = teamPlayer[j].position;
-          this.attack(teamPlayer[j].position);
-          return null;
-        }
-      }
-    }
-
-    for (let i = 0; i < teamPlayer.length; i += 1) {
-      this.gameState.selectedPosition = teamPlayer[i].position;
-      this.gameState.selectedCharacter = teamPlayer[i].character;
-      for (let j = 0; j < teamComputer.length; j += 1) {
-        if (this.availableCells(teamComputer[j].position).possible) {
-          this.gameState.selectedPosition = teamComputer[j].position;
-          this.gameState.selectedCharacter = teamComputer[j].character;
-
-          this.gamePlay.selectCell(teamComputer[j].position);
-
-          let index = Math.floor(Math.random() * (this.availableCells(0).array.length));
-          while (
-            // eslint-disable-next-line no-loop-func
-            teamComputer.findIndex((item) => item.position === index) > -1
-            // eslint-disable-next-line no-loop-func
-            || teamPlayer.findIndex((item) => item.position === index) > -1
-          ) {
-            index = Math.floor(Math.random() * (this.availableCells(0).array.length));
+      for (let i = 0; i < teamComputer.length; i += 1) {
+        this.gameState.selectedPosition = teamComputer[i].position;
+        this.gameState.selectedCharacter = teamComputer[i].character;
+        for (let j = 0; j < teamPlayer.length; j += 1) {
+          if (this.availableCells(teamPlayer[j].position).possible) {
+            this.gamePlay.selectCell(teamComputer[i].position);
+            this.gamePlay.selectCell(teamPlayer[j].position, 'red');
+            this.gameState.selectedCell = teamPlayer[j].position;
+            this.attack(teamPlayer[j].position);
+            return null;
           }
-          this.gamePlay.selectCell(index, 'green');
-          this.gameState.selectedCell = index;
-          this.motion(index);
-          return null;
         }
       }
+
+      for (let i = 0; i < teamPlayer.length; i += 1) {
+        this.gameState.selectedPosition = teamPlayer[i].position;
+        this.gameState.selectedCharacter = teamPlayer[i].character;
+        for (let j = 0; j < teamComputer.length; j += 1) {
+          if (this.availableCells(teamComputer[j].position).possible) {
+            this.gameState.selectedPosition = teamComputer[j].position;
+            this.gameState.selectedCharacter = teamComputer[j].character;
+
+            this.gamePlay.selectCell(teamComputer[j].position);
+
+            const arrayCells = this.availableCells(0).array;
+
+            let index = Math.floor(Math.random() * arrayCells.length);
+            while (
+              // eslint-disable-next-line no-loop-func
+              teamComputer.findIndex((item) => item.position === arrayCells[index]) > -1
+              // eslint-disable-next-line no-loop-func
+              || teamPlayer.findIndex((item) => item.position === arrayCells[index]) > -1
+            ) {
+              index = Math.floor(Math.random() * arrayCells.length);
+            }
+
+            this.gamePlay.selectCell(arrayCells[index], 'green');
+            this.gameState.selectedCell = arrayCells[index];
+            this.motion(arrayCells[index]);
+            return null;
+          }
+        }
+      }
+
+      const indexCharacter = Math.floor(Math.random() * (teamComputer.length));
+
+      this.gameState.selectedPosition = teamComputer[indexCharacter].position;
+      this.gameState.selectedCharacter = teamComputer[indexCharacter].character;
+      this.gamePlay.selectCell(teamComputer[indexCharacter].position);
+
+      const arrayCells = this.availableCells(0).array;
+
+      let index = Math.floor(Math.random() * arrayCells.length);
+      while (
+        // eslint-disable-next-line no-loop-func
+        teamComputer.findIndex((item) => item.position === arrayCells[index]) > -1
+        // eslint-disable-next-line no-loop-func
+        || teamPlayer.findIndex((item) => item.position === arrayCells[index]) > -1
+      ) {
+        index = Math.floor(Math.random() * arrayCells.length);
+      }
+
+      this.gamePlay.selectCell(arrayCells[index], 'green');
+      this.gameState.selectedCell = arrayCells[index];
+
+      this.motion(arrayCells[index]);
     }
-
-    const indexCharacter = Math.floor(Math.random() * (teamComputer.length));
-
-    this.gameState.selectedPosition = teamComputer[indexCharacter].position;
-    this.gameState.selectedCharacter = teamComputer[indexCharacter].character;
-    this.gamePlay.selectCell(teamComputer[indexCharacter].position);
-
-    let index = Math.floor(Math.random() * (this.availableCells(15).array.length));
-    while (
-      // eslint-disable-next-line no-loop-func
-      teamComputer.findIndex((item) => item.position === index) > -1
-      // eslint-disable-next-line no-loop-func
-      || teamPlayer.findIndex((item) => item.position === index) > -1
-    ) {
-      index = Math.floor(Math.random() * (this.availableCells(15).array.length));
-    }
-
-    this.gamePlay.selectCell(index, 'green');
-    this.gameState.selectedCell = index;
-
-    this.motion(index);
-
     return null;
   }
 
@@ -357,27 +401,32 @@ export default class GameController {
     if (this.gameState.level === 4) {
       this.checkRecord();
       this.gameOver(`Поздравляем! Вы победили! Набранное количество баллов - ${this.gameState.score}. Лучший результат - ${this.gameState.record}`);
+
+      return null;
     }
 
     this.gameState.level += 1;
 
     // eslint-disable-next-line max-len
-    this.gameState.score += this.stateGame.characters.reduce((sum, item) => sum + item.character.health, 0);
+    this.gameState.score += this.gameState.characters.reduce((sum, item) => sum + item.character.health, 0);
+
+    this.checkRecord();
+    GamePlay.showMessage(`Поздравляем! Вы переходите на следующий уровень! Набранное количество баллов - ${this.gameState.score}. Лучший результат - ${this.gameState.record}`);
 
     for (let i = 0; i < this.gameState.characters.length; i += 1) {
       this.gameState.characters[i].character.level += 1;
 
-      this.gameState.characters[i].character.attack = Math.max(
+      this.gameState.characters[i].character.attack = Math.round(Math.max(
         this.gameState.characters[i].character.attack,
         // eslint-disable-next-line max-len
-        (this.gameState.characters[i].character.attack * (1.8 - this.gameState.characters[i].character.health)) / 100,
-      );
+        (this.gameState.characters[i].character.attack * (1.8 - (this.gameState.characters[i].character.health * 0.01))),
+      ));
 
-      this.gameState.characters[i].character.defence = Math.max(
+      this.gameState.characters[i].character.defence = Math.round(Math.max(
         this.gameState.characters[i].character.defence,
         // eslint-disable-next-line max-len
-        (this.gameState.characters[i].character.defence * (1.8 - this.gameState.characters[i].character.health)) / 100,
-      );
+        (this.gameState.characters[i].character.defence * (1.8 - (this.gameState.characters[i].character.health * 0.01))),
+      ));
 
       this.gameState.characters[i].character.health += 80;
       if (this.gameState.characters[i].character.health > 100) {
@@ -387,30 +436,38 @@ export default class GameController {
 
     if (this.gameState.level === 2) {
       const teamPlayer = generateTeam(playerTypes(), 1, 1);
-      teamPlayer.forEach((item) => this.gameState.characters.push(item));
+      teamPlayer.redefiningPosition(this.gameState.characters, playerPositions());
+      teamPlayer.members.forEach((item) => this.gameState.characters.push(item));
       const teamComputer = generateTeam(computerTypes(), 2, this.gameState.characters.length);
-      teamComputer.forEach((item) => this.gameState.characters.push(item));
+      teamComputer.redefiningPosition(this.gameState.characters, computerPositions());
+      teamComputer.members.forEach((item) => this.gameState.characters.push(item));
     }
 
     if (this.gameState.level === 3) {
       const teamPlayer = generateTeam(playerTypes(), 2, 2);
-      teamPlayer.forEach((item) => this.gameState.characters.push(item));
+      teamPlayer.redefiningPosition(this.gameState.characters, playerPositions());
+      teamPlayer.members.forEach((item) => this.gameState.characters.push(item));
       const teamComputer = generateTeam(computerTypes(), 3, this.gameState.characters.length);
-      teamComputer.forEach((item) => this.gameState.characters.push(item));
+      teamComputer.redefiningPosition(this.gameState.characters, computerPositions());
+      teamComputer.members.forEach((item) => this.gameState.characters.push(item));
     }
 
     if (this.gameState.level === 4) {
       const teamPlayer = generateTeam(playerTypes(), 3, 2);
-      teamPlayer.forEach((item) => this.gameState.characters.push(item));
+      teamPlayer.redefiningPosition(this.gameState.characters, playerPositions());
+      teamPlayer.members.forEach((item) => this.gameState.characters.push(item));
       const teamComputer = generateTeam(computerTypes(), 4, this.gameState.characters.length);
-      teamComputer.forEach((item) => this.gameState.characters.push(item));
+      teamComputer.redefiningPosition(this.gameState.characters, computerPositions());
+      teamComputer.members.forEach((item) => this.gameState.characters.push(item));
     }
 
     this.gamePlay.drawUi(themes[this.gameState.level]);
     this.gamePlay.redrawPositions(this.gameState.characters);
+
+    return null;
   }
 
   checkRecord() {
-    if (this.gameState.record > this.gameState.score) this.gameState.record = this.gameState.score;
+    if (this.gameState.record < this.gameState.score) this.gameState.record = this.gameState.score;
   }
 }

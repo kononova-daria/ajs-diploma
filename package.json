@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "eslint .",
     "build": "webpack --mode production",
-    "start": "webpack serve --mode development",
+    "start": "webpack-dev-server --mode development",
     "test": "jest"
   },
   "repository": {
@@ -25,19 +25,19 @@
     "@babel/preset-env": "^7.15.0",
     "babel-jest": "^27.1.0",
     "babel-loader": "^8.2.2",
-    "css-loader": "^6.2.0",
+    "css-loader": "^3.6.0",
     "eslint": "^7.32.0",
     "eslint-config-airbnb-base": "^14.2.1",
     "eslint-plugin-import": "^2.24.2",
     "file-loader": "^6.2.0",
-    "html-loader": "^2.1.2",
-    "html-webpack-plugin": "^5.3.2",
+    "html-loader": "^1.1.0",
+    "html-webpack-plugin": "^4.3.0",
     "jest": "^27.1.0",
-    "mini-css-extract-plugin": "^2.2.2",
+    "mini-css-extract-plugin": "^0.9.0",
     "url-loader": "^4.1.1",
-    "webpack": "^5.51.2",
-    "webpack-cli": "^4.8.0",
-    "webpack-dev-server": "^4.1.0"
+    "webpack": "^4.43.0",
+    "webpack-cli": "^3.3.11",
+    "webpack-dev-server": "^3.11.0"
   },
   "dependencies": {
     "core-js": "^3.17.1"
